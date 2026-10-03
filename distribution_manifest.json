@@ -1,0 +1,36 @@
+{
+  "schema_version": "2.0",
+  "node_id": "ETHOS-BITCOIN-002",
+  "project": "Ethos Bitcoin",
+  "distribution_policy": {
+    "public_download": true,
+    "download_price_btc": "0",
+    "payment_required_for_download": false,
+    "terms_file": "DISTRIBUTION_TERMS.md"
+  },
+  "artifact": {
+    "filename": "Copy of Ethos_Bitcoin.xlsx",
+    "sha256": "f1e7d387512ad98a2998ee196b332b35ab7a6f2f0205dab09ed0034466e08ffe",
+    "size_bytes": 441608,
+    "status": "RELEASED",
+    "version": "1.0.0"
+  },
+  "support": {
+    "bitcoin_enabled": true,
+    "bitcoin_address": "bc1q2tkjmreuv8t9mqsew8l2h0kdvxarym3y6v2ld6",
+    "network": "bitcoin-mainnet",
+    "support_type": "VOLUNTARY_DONATION",
+    "payment_required": false,
+    "investment_rights_granted": false
+  },
+  "provenance": {
+    "source_role": "REVIEWED_DISTRIBUTION_COPY",
+    "relationship": "APPROVED_PUBLIC_RELEASE"
+  },
+  "release": {
+    "status": "RELEASED",
+    "created_at_utc": "2026-10-03T05:51:58Z",
+    "repository": "petersentyrel6-afk/Ethos",
+    "branch": "main"
+  }
+}

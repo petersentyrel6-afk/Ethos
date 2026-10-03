@@ -1,4 +1,18 @@
-# Craft 2 Storage (https://craftcms.com/support/craft-storage-gitignore)
-# not necessary for Craft 3 (https://github.com/craftcms/craft/issues/26)
-/craft/storage/*
-!/craft/storage/rebrand
+
+# Never commit private credentials or wallet material
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+seed.txt
+seed_phrase.txt
+mnemonic.txt
+private_key.txt
+wallet_backup.txt
+
+__pycache__/
+*.py[cod]
