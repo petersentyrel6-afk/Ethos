@@ -1,0 +1,783 @@
+Absolutely. Below is a complete credential-free GitHub control package for ETHOS-BITCOIN-002. It deliberately does not contain GitHub tokens, passwords, Drive credentials, private keys, or banking credentials.
+
+The important invariant is:
+
+> Ethos_Bitcoin is never an eligible distribution artifact. Copy of Ethos_Bitcoin is the only approved distribution filename.
+
+
+
+1. README.md
+
+# ETHOS-BITCOIN-002
+
+## GitHub Distribution Control
+
+This repository provides versioning, integrity, provenance, and release controls for the Steezy Ethos Bitcoin project.
+
+## Authority Model
+
+There are two document roles:
+
+### MASTER
+
+`Ethos_Bitcoin`
+
+The canonical source of truth.
+
+- Must not be distributed through this repository.
+- Must not be replaced by a distribution copy.
+- Must not be modified by the release scripts.
+- Remains authoritative regardless of changes to a distribution copy.
+
+### DISTRIBUTION
+
+`Copy of Ethos_Bitcoin`
+
+The controlled artifact approved for distribution.
+
+## Security Principle
+
+```text
+MASTER
+   |
+   | controlled copy
+   v
+DISTRIBUTION COPY
+   |
+   | validation
+   v
+GITHUB RELEASE
+
+GitHub provides:
+
+version control
+
+change history
+
+integrity verification
+
+release records
+
+provenance metadata
+
+automated validation
+
+
+GitHub does NOT become the canonical Master.
+
+Fail-Closed Rules
+
+The distribution controls reject:
+
+1. Ethos_Bitcoin
+
+
+2. files whose basename is the Master filename
+
+
+3. distribution attempts containing both Master and Distribution artifacts
+
+
+4. missing distribution artifacts
+
+
+5. integrity mismatches
+
+
+6. malformed manifests
+
+
+
+No Credentials
+
+This repository must never contain:
+
+passwords
+
+API keys
+
+GitHub tokens
+
+Google credentials
+
+private keys
+
+banking credentials
+
+Cash App credentials
+
+authentication cookies
+
+
+Use GitHub Actions secrets or an external credential manager for any future authenticated integration.
+
+Verification
+
+Run:
+
+python scripts/validate_distribution.py "Copy of Ethos_Bitcoin"
+
+Generate a manifest:
+
+python scripts/generate_manifest.py "Copy of Ethos_Bitcoin"
+
+Verify the recorded artifact:
+
+python scripts/verify_integrity.py "Copy of Ethos_Bitcoin"
+
+Prepare a release package:
+
+python scripts/prepare_release.py "Copy of Ethos_Bitcoin"
+
+Core Rule
+
+The Master is preserved.
+
+The Copy is distributed.
+
+Authority never transfers implicitly.
+
+---
+
+### 2. `distribution_manifest.json`
+
+This starts as a clean template. The generation script fills in the actual hash and timestamp.
+
+```json
+{
+  "schema_version": "1.0",
+  "node_id": "ETHOS-BITCOIN-002",
+  "project": "Steezy Ethos Bitcoin",
+  "authority": {
+    "master_filename": "Ethos_Bitcoin",
+    "master_distribution_allowed": false
+  },
+  "distribution": {
+    "filename": "Copy of Ethos_Bitcoin",
+    "distribution_allowed": true
+  },
+  "artifact": {
+    "filename": null,
+    "sha256": null,
+    "size_bytes": null
+  },
+  "provenance": {
+    "source_role": "MASTER",
+    "derived_role": "DISTRIBUTION",
+    "relationship": "CONTROLLED_COPY"
+  },
+  "release": {
+    "version": null,
+    "created_at_utc": null,
+    "status": "UNRELEASED"
+  }
+}
+
+
+---
+
+3. .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/editor files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# Local manifests generated during testing
+*.manifest.tmp
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Credentials
+credentials.json
+service-account*.json
+
+# Local release output
+release/
+dist/
+
+
+---
+
+4. scripts/validate_distribution.py
+
+This is the primary fail-closed gate.
+
+#!/usr/bin/env python3
+
+"""
+ETHOS-BITCOIN-002
+Distribution validation gate.
+
+Only the designated Distribution Copy may pass.
+
+MASTER:
+    Ethos_Bitcoin
+
+DISTRIBUTION:
+    Copy of Ethos_Bitcoin
+"""
+
+from pathlib import Path
+import sys
+
+
+MASTER_NAME = "Ethos_Bitcoin"
+DISTRIBUTION_NAME = "Copy of Ethos_Bitcoin"
+
+
+def fail(message: str) -> None:
+    print(f"ERROR: {message}")
+    sys.exit(1)
+
+
+def validate_distribution(path_string: str) -> Path:
+    path = Path(path_string)
+
+    if not path.exists():
+        fail(f"Artifact does not exist: {path}")
+
+    if not path.is_file():
+        fail(f"Artifact is not a regular file: {path}")
+
+    filename = path.name
+
+    # Hard Master protection.
+    if filename == MASTER_NAME:
+        fail(
+            "MASTER ARTIFACT REJECTED. "
+            f"'{MASTER_NAME}' is never eligible for distribution."
+        )
+
+    # Only the designated distribution artifact is accepted.
+    if filename != DISTRIBUTION_NAME:
+        fail(
+            f"Unauthorized distribution artifact: '{filename}'. "
+            f"Expected exactly: '{DISTRIBUTION_NAME}'."
+        )
+
+    print("PASS: Distribution artifact validated.")
+    print(f"Artifact: {path}")
+    print(f"Role: DISTRIBUTION")
+    print(f"Master protected: {MASTER_NAME}")
+
+    return path
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        print(
+            "Usage:\n"
+            "  python scripts/validate_distribution.py "
+            "\"Copy of Ethos_Bitcoin\""
+        )
+        sys.exit(2)
+
+    validate_distribution(sys.argv[1])
+
+
+if __name__ == "__main__":
+    main()
+
+
+---
+
+5. scripts/generate_manifest.py
+
+This generates the SHA-256 provenance record.
+
+#!/usr/bin/env python3
+
+"""
+ETHOS-BITCOIN-002
+Generate a distribution provenance manifest.
+"""
+
+from pathlib import Path
+from datetime import datetime, timezone
+import hashlib
+import json
+import sys
+
+
+MASTER_NAME = "Ethos_Bitcoin"
+DISTRIBUTION_NAME = "Copy of Ethos_Bitcoin"
+
+MANIFEST_NAME = "distribution_manifest.json"
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def validate_filename(path: Path) -> None:
+    if path.name == MASTER_NAME:
+        raise ValueError(
+            "The Master cannot be used as a distribution artifact."
+        )
+
+    if path.name != DISTRIBUTION_NAME:
+        raise ValueError(
+            f"Expected '{DISTRIBUTION_NAME}', got '{path.name}'."
+        )
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        print(
+            "Usage:\n"
+            "  python scripts/generate_manifest.py "
+            "\"Copy of Ethos_Bitcoin\""
+        )
+        sys.exit(2)
+
+    artifact = Path(sys.argv[1])
+
+    if not artifact.exists():
+        print(f"ERROR: File does not exist: {artifact}")
+        sys.exit(1)
+
+    validate_filename(artifact)
+
+    checksum = sha256_file(artifact)
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    manifest = {
+        "schema_version": "1.0",
+        "node_id": "ETHOS-BITCOIN-002",
+        "project": "Steezy Ethos Bitcoin",
+        "authority": {
+            "master_filename": MASTER_NAME,
+            "master_distribution_allowed": False
+        },
+        "distribution": {
+            "filename": DISTRIBUTION_NAME,
+            "distribution_allowed": True
+        },
+        "artifact": {
+            "filename": artifact.name,
+            "sha256": checksum,
+            "size_bytes": artifact.stat().st_size
+        },
+        "provenance": {
+            "source_role": "MASTER",
+            "derived_role": "DISTRIBUTION",
+            "relationship": "CONTROLLED_COPY"
+        },
+        "release": {
+            "version": "UNRELEASED",
+            "created_at_utc": timestamp,
+            "status": "UNRELEASED"
+        }
+    }
+
+    output = Path(MANIFEST_NAME)
+
+    with output.open("w", encoding="utf-8") as file:
+        json.dump(manifest, file, indent=2)
+        file.write("\n")
+
+    print("PASS: Manifest generated.")
+    print(f"Manifest: {output}")
+    print(f"SHA-256: {checksum}")
+
+
+if __name__ == "__main__":
+    main()
+
+
+---
+
+6. scripts/verify_integrity.py
+
+This checks whether the distributed artifact still matches the recorded hash.
+
+#!/usr/bin/env python3
+
+"""
+ETHOS-BITCOIN-002
+Verify distribution artifact integrity.
+"""
+
+from pathlib import Path
+import hashlib
+import json
+import sys
+
+
+MASTER_NAME = "Ethos_Bitcoin"
+DISTRIBUTION_NAME = "Copy of Ethos_Bitcoin"
+MANIFEST_NAME = "distribution_manifest.json"
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def fail(message: str) -> None:
+    print(f"INTEGRITY FAILURE: {message}")
+    sys.exit(1)
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        print(
+            "Usage:\n"
+            "  python scripts/verify_integrity.py "
+            "\"Copy of Ethos_Bitcoin\""
+        )
+        sys.exit(2)
+
+    artifact = Path(sys.argv[1])
+
+    if not artifact.exists():
+        fail(f"Artifact does not exist: {artifact}")
+
+    if artifact.name == MASTER_NAME:
+        fail("The Master cannot be verified as a distribution artifact.")
+
+    if artifact.name != DISTRIBUTION_NAME:
+        fail(
+            f"Unauthorized artifact. Expected '{DISTRIBUTION_NAME}'."
+        )
+
+    manifest_path = Path(MANIFEST_NAME)
+
+    if not manifest_path.exists():
+        fail(f"Manifest does not exist: {manifest_path}")
+
+    try:
+        with manifest_path.open("r", encoding="utf-8") as file:
+            manifest = json.load(file)
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"Unable to read manifest: {exc}")
+
+    recorded_filename = manifest.get("artifact", {}).get("filename")
+    recorded_hash = manifest.get("artifact", {}).get("sha256")
+
+    if recorded_filename != DISTRIBUTION_NAME:
+        fail(
+            "Manifest does not identify the authorized "
+            "distribution artifact."
+        )
+
+    if not recorded_hash:
+        fail("Manifest contains no SHA-256 checksum.")
+
+    actual_hash = sha256_file(artifact)
+
+    if actual_hash.lower() != recorded_hash.lower():
+        fail(
+            "SHA-256 mismatch.\n"
+            f"Recorded: {recorded_hash}\n"
+            f"Actual:   {actual_hash}"
+        )
+
+    print("PASS: Integrity verified.")
+    print(f"Artifact: {artifact}")
+    print(f"SHA-256: {actual_hash}")
+
+
+if __name__ == "__main__":
+    main()
+
+
+---
+
+7. scripts/prepare_release.py
+
+This prepares a release directory while explicitly refusing the Master.
+
+#!/usr/bin/env python3
+
+"""
+ETHOS-BITCOIN-002
+Prepare a controlled distribution release.
+
+This script never modifies the Master.
+"""
+
+from pathlib import Path
+from datetime import datetime, timezone
+import hashlib
+import json
+import shutil
+import sys
+
+
+MASTER_NAME = "Ethos_Bitcoin"
+DISTRIBUTION_NAME = "Copy of Ethos_Bitcoin"
+
+RELEASE_ROOT = Path("release")
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def fail(message: str) -> None:
+    print(f"ERROR: {message}")
+    sys.exit(1)
+
+
+def main() -> None:
+    if len(sys.argv) != 2:
+        print(
+            "Usage:\n"
+            "  python scripts/prepare_release.py "
+            "\"Copy of Ethos_Bitcoin\""
+        )
+        sys.exit(2)
+
+    source = Path(sys.argv[1])
+
+    if not source.exists():
+        fail(f"Source artifact does not exist: {source}")
+
+    if not source.is_file():
+        fail("Source artifact is not a regular file.")
+
+    if source.name == MASTER_NAME:
+        fail(
+            "MASTER PROTECTION TRIGGERED. "
+            "The Master cannot be released."
+        )
+
+    if source.name != DISTRIBUTION_NAME:
+        fail(
+            f"Only '{DISTRIBUTION_NAME}' may be released."
+        )
+
+    checksum = sha256_file(source)
+
+    timestamp = datetime.now(timezone.utc)
+    version = timestamp.strftime("release-%Y%m%d-%H%M%S")
+
+    release_dir = RELEASE_ROOT / version
+
+    if release_dir.exists():
+        fail(f"Release directory already exists: {release_dir}")
+
+    release_dir.mkdir(parents=True)
+
+    destination = release_dir / DISTRIBUTION_NAME
+
+    shutil.copy2(source, destination)
+
+    manifest = {
+        "schema_version": "1.0",
+        "node_id": "ETHOS-BITCOIN-002",
+        "project": "Steezy Ethos Bitcoin",
+        "release": {
+            "version": version,
+            "created_at_utc": timestamp.isoformat(),
+            "status": "READY"
+        },
+        "artifact": {
+            "filename": DISTRIBUTION_NAME,
+            "sha256": checksum,
+            "size_bytes": destination.stat().st_size
+        },
+        "authority": {
+            "master_filename": MASTER_NAME,
+            "master_distribution_allowed": False,
+            "distribution_filename": DISTRIBUTION_NAME
+        },
+        "provenance": {
+            "source_role": "MASTER",
+            "derived_role": "DISTRIBUTION",
+            "relationship": "CONTROLLED_COPY"
+        }
+    }
+
+    manifest_path = release_dir / "distribution_manifest.json"
+
+    with manifest_path.open("w", encoding="utf-8") as file:
+        json.dump(manifest, file, indent=2)
+        file.write("\n")
+
+    print("PASS: Release package prepared.")
+    print(f"Release: {release_dir}")
+    print(f"Artifact: {destination}")
+    print(f"SHA-256: {checksum}")
+    print("Master modified: NO")
+
+
+if __name__ == "__main__":
+    main()
+
+
+---
+
+8. .github/workflows/distribution-check.yml
+
+This makes GitHub automatically run the controls.
+
+name: Ethos Bitcoin Distribution Check
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+  pull_request:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  validate-distribution:
+    name: Validate Distribution Artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Locate distribution artifact
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          matches="$(find . -type f -name 'Copy of Ethos_Bitcoin' \
+            -not -path './.git/*')"
+
+          count="$(printf '%s\n' "$matches" | \
+            sed '/^$/d' | wc -l)"
+
+          if [ "$count" -ne 1 ]; then
+            echo "ERROR: Expected exactly one Distribution Copy."
+            echo "Found:"
+            printf '%s\n' "$matches"
+            exit 1
+          fi
+
+          artifact="$(printf '%s\n' "$matches")"
+
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+
+      - name: Reject Master artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if find . -type f -name 'Ethos_Bitcoin' \
+            -not -path './.git/*' | grep -q .; then
+
+            echo "ERROR: Master artifact detected."
+            echo "The file 'Ethos_Bitcoin' must never be distributed."
+            exit 1
+          fi
+
+          echo "PASS: Master artifact not present."
+
+      - name: Validate distribution filename
+        run: |
+          python scripts/validate_distribution.py \
+            "${{ steps.locate.outputs.artifact }}"
+
+      - name: Generate verification manifest
+        run: |
+          cp "${{ steps.locate.outputs.artifact }}" \
+             "./Copy of Ethos_Bitcoin"
+
+          python scripts/generate_manifest.py \
+            "./Copy of Ethos_Bitcoin"
+
+      - name: Verify integrity
+        run: |
+          python scripts/verify_integrity.py \
+            "./Copy of Ethos_Bitcoin"
+
+      - name: Display manifest
+        run: |
+          cat distribution_manifest.json
+
+The resulting control flow
+
+ETHOS-BITCOIN-002
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │ GitHub Repository │
+                 └─────────┬─────────┘
+                           │
+                    GitHub Action
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │ Is Master present?│
+                 └─────────┬─────────┘
+                           │
+                 YES ──────┴────── NO
+                  │                │
+                  ▼                ▼
+                FAIL          Find Distribution
+                                   │
+                                   ▼
+                          Validate filename
+                                   │
+                                   ▼
+                            Generate SHA-256
+                                   │
+                                   ▼
+                           Verify integrity
+                                   │
+                                   ▼
+                             PASS / RELEASE
+
+One thing I would not automate yet is Google Drive itself. The first version should prove the GitHub control model with local artifacts. Once that works, the next node can safely add a Drive integration that retrieves Copy of Ethos_Bitcoin only, while refusing to retrieve or distribute the Master. That keeps credentials and external permissions out of this first control layer.
